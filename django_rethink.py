@@ -337,10 +337,14 @@ class RethinkSerializer(serializers.Serializer):
         order_by = None
         abstract = False
         indices = []
+        unique = []
+        unique_together = []
 
     def __init__(self, *args, **kwargs):
         if self.Meta.slug_field:
             setattr(self, 'validate_' + self.Meta.slug_field, validate_unique_key(self, self.Meta.slug_field))
+        for field in self.Meta.unique:
+            setattr(self, 'validate_' + field, validate_unique_key(self, field))
         super(RethinkSerializer, self).__init__(*args, **kwargs)
         self.conn = get_connection()
 
@@ -409,3 +413,20 @@ class RethinkSerializer(serializers.Serializer):
         elif 'username' in self.context:
             username = self.context['username']
         return username
+
+    def validate(self, data):
+        for group in self.Meta.unique_together:
+            value = [data.get(field, self.instance.get(field, None) if self.instance is not None else None) for field in group]
+            for index in self.Meta.indices:
+                if isinstance(index, (tuple, list)) and index[1] == group:
+                    query = r.table(self.Meta.table_name).get_all(value, index=index[0])
+                    query = query.count()
+                    break
+            else:
+                query = self.filter(dict([(field, value[i]) for i, field in enumerate(group)], reql=True))
+            if self.instance is not None:
+                query = query.filter(r.row[self.Meta.pk_field] != self.instance[self.Meta.pk_field])
+            matched = query.run(self.conn)
+            if matched > 0:
+                raise serializers.ValidationError("combination of %r is not unique" % (group,))
+        return data
