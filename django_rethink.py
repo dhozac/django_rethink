@@ -177,7 +177,6 @@ class RethinkAPIMixin(object):
     slug_url_kwarg = "slug"
     queryset = None
     pk_index_name = None
-    slug_index_name = None
     group_filter_fields = None
     group_filter_extras = []
 
