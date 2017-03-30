@@ -328,6 +328,22 @@ class RethinkObjectNotFound(Exception):
 class RethinkMultipleObjectsFound(Exception):
     pass
 
+def dict_merge(dict1, dict2):
+    if dict1 is None:
+        return dict2.copy()
+    elif dict2 is None:
+        return dict1.copy()
+    elif not isinstance(dict1, dict) or not isinstance(dict2, dict):
+        raise Exception("Attempting to dict_merge non-dicts: %r %r" % (dict1, dict2))
+    d = dict1.copy()
+    for key in dict2:
+        if key in d and isinstance(d[key], dict):
+            d[key] = dict_merge(d[key], dict2[key])
+        else:
+            d[key] = dict2[key]
+    return d
+
+
 class RethinkSerializer(serializers.Serializer):
     class Meta(object):
         table_name = None
@@ -429,3 +445,9 @@ class RethinkSerializer(serializers.Serializer):
             if matched > 0:
                 raise serializers.ValidationError("combination of %r is not unique" % (group,))
         return data
+
+    def get_updated_object(self, data):
+        if self.partial:
+            return dict_merge(self.instance, data)
+        else:
+            return data
