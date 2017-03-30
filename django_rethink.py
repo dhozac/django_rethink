@@ -435,12 +435,12 @@ class RethinkSerializer(serializers.Serializer):
             for index in self.Meta.indices:
                 if isinstance(index, (tuple, list)) and index[1] == group:
                     query = r.table(self.Meta.table_name).get_all(value, index=index[0])
-                    query = query.count()
                     break
             else:
-                query = self.filter(dict([(field, value[i]) for i, field in enumerate(group)], reql=True))
+                query = self.filter(dict([(field, value[i]) for i, field in enumerate(group)]), reql=True)
             if self.instance is not None:
                 query = query.filter(r.row[self.Meta.pk_field] != self.instance[self.Meta.pk_field])
+            query = query.count()
             matched = query.run(self.conn)
             if matched > 0:
                 raise serializers.ValidationError("combination of %r is not unique" % (group,))
