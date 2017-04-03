@@ -15,6 +15,7 @@
 from rest_framework import serializers
 import rethinkdb as r
 import six
+from django.utils import timezone
 from django_rethink.connection import get_connection
 
 def validate_unique_key(self, field):
@@ -34,6 +35,9 @@ class RethinkObjectNotFound(Exception):
 class RethinkMultipleObjectsFound(Exception):
     pass
 
+class SimultaneousObjectManipulationException(Exception):
+    pass
+
 def dict_merge(dict1, dict2):
     if dict1 is None:
         return dict2.copy()
@@ -48,7 +52,6 @@ def dict_merge(dict1, dict2):
         else:
             d[key] = dict2[key]
     return d
-
 
 class RethinkSerializer(serializers.Serializer):
     class Meta(object):
@@ -84,6 +87,10 @@ class RethinkSerializer(serializers.Serializer):
             return validated_data
         else:
             return result['changes'][0]['new_val']
+
+    def delete(self):
+        result = r.table(self.Meta.table_name).get(self.data[self.Meta.pk_field]).delete().run(self.conn)
+        return result['deleted'] > 0
 
     @classmethod
     def filter(cls, *args, **fields):
@@ -123,10 +130,6 @@ class RethinkSerializer(serializers.Serializer):
             pass
         return result
 
-    def delete(self):
-        result = r.table(self.Meta.table_name).get(self.data[self.Meta.pk_field]).delete().run(self.conn)
-        return result['deleted'] > 0
-
     def get_username(self):
         username = None
         if 'request' in self.context and self.context['request'].user is not None:
@@ -157,3 +160,107 @@ class RethinkSerializer(serializers.Serializer):
             return dict_merge(self.instance, data)
         else:
             return data
+
+class HistorySerializer(RethinkSerializer):
+    id = serializers.CharField(read_only=True)
+    object_type = serializers.CharField(required=True)
+    object = serializers.DictField(required=True)
+    timestamp = serializers.DateTimeField(required=True)
+    username = serializers.CharField(required=True)
+    message = serializers.CharField(required=False, allow_null=True)
+
+    class Meta(RethinkSerializer.Meta):
+        table_name = 'history'
+        pk_field = 'id'
+        indices = [
+            'object_type',
+            ('object_id', r.row['object']['id']),
+            ('object_type_id', (r.row['object_type'], r.row['object']['id'])),
+        ]
+
+class HistorySerializerMixin(RethinkSerializer):
+    version = serializers.IntegerField(required=False)
+    log = serializers.CharField(required=False)
+
+    class Meta(RethinkSerializer.Meta):
+        abstract = True
+
+    def create(self, validated_data):
+        if 'log' in validated_data:
+            log = validated_data.pop('log')
+        elif hasattr(self.Meta, 'log_required') and self.Meta.log_required:
+            raise serializers.ValidationError("log is required")
+        else:
+            log = None
+        if 'version' not in validated_data:
+            validated_data['version'] = 1
+        result = r.table(self.Meta.table_name).insert(validated_data, return_changes=True).run(self.conn)
+        history = HistorySerializer(None, data={
+            'object_type': self.Meta.table_name,
+            'object': result['changes'][0]['new_val'].copy(),
+            'username': self.get_username(),
+            'timestamp': timezone.now(),
+            'message': log,
+        })
+        history.is_valid(raise_exception=True)
+        history.save()
+        return result['changes'][0]['new_val']
+
+    def update(self, instance, validated_data):
+        update = dict(validated_data)
+        if 'log' in update:
+            log = update.pop('log')
+        elif hasattr(self.Meta, 'log_required') and self.Meta.log_required:
+            raise serializers.ValidationError("log is required")
+        else:
+            log = None
+        update['version'] = validated_data['version'] + 1
+        filtered = r.table(self.Meta.table_name) \
+                   .get_all(instance[self.Meta.pk_field]) \
+                   .filter(r.row['version'] == validated_data['version'])
+        if self.partial:
+            result = filtered.update(update, return_changes=True).run(self.conn)
+        else:
+            result = filtered.replace(update, return_changes=True).run(self.conn)
+        if result['replaced'] + result['unchanged'] == 0:
+            raise SimultaneousObjectManipulationException("Simultaneous object manipulation error! %s %d" % (instance[self.Meta.pk_field], instance['version']))
+        queryset = r.table(self.Meta.table_name).get(instance[self.Meta.pk_field])
+        if self.partial:
+            queryset = queryset.update(validated_data, return_changes=True)
+        else:
+            queryset = queryset.replace(validated_data, return_changes=True)
+        result = queryset.run(self.conn)
+        if len(result['changes']) == 0:
+            new_val = instance
+        else:
+            new_val = result['changes'][0]['new_val']
+        history = HistorySerializer(None, data={
+            'object_type': self.Meta.table_name,
+            'object': new_val.copy(),
+            'username': self.get_username(),
+            'timestamp': timezone.now(),
+            'message': log,
+        })
+        history.is_valid(raise_exception=True)
+        history.save()
+        return new_val
+
+    def delete(self):
+        data = self.context['request'].data
+        if 'log' not in data:
+            if hasattr(self.Meta, 'log_required') and self.Meta.log_required:
+                raise serializers.ValidationError("'log' field is required when deleting an object")
+            log = None
+        else:
+            log = data['log']
+        result = r.table(self.Meta.table_name).get(self.instance[self.Meta.pk_field]).delete(return_changes=True).run(self.conn)
+        history = HistorySerializer(None, data={
+            'object_type': self.Meta.table_name,
+            'object': {self.Meta.pk_field: self.instance[self.Meta.pk_field]},
+            'username': self.get_username(),
+            'timestamp': timezone.now(),
+            'message': log,
+        })
+        history.is_valid(raise_exception=True)
+        history.save()
+        return result['deleted'] > 0
