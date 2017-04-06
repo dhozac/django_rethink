@@ -53,6 +53,26 @@ def dict_merge(dict1, dict2):
             d[key] = dict2[key]
     return d
 
+def validate_group_name(group_name):
+    try:
+        group = Group.objects.get(name=group_name)
+        return True
+    except Group.DoesNotExist:
+        if hasattr(settings, 'AUTH_LDAP_SERVER_URI'):
+            import ldap
+            l = ldap.initialize(settings.AUTH_LDAP_SERVER_URI)
+            if settings.AUTH_LDAP_START_TLS:
+                l.start_tls_s()
+            result = settings.AUTH_LDAP_GROUP_SEARCH.search_with_additional_term_string("(cn=%s)").execute(l, filterargs=(group_name,))
+            if len(result) > 0:
+                return True
+        raise serializers.ValidationError("group %s does not exist" % group_name)
+
+class PermissionsSerializer(serializers.Serializer):
+    read = serializers.ListField(child=serializers.CharField(validators=[validate_group_name]), allow_empty=True)
+    create = serializers.ListField(child=serializers.CharField(validators=[validate_group_name]), allow_empty=True)
+    write = serializers.ListField(child=serializers.CharField(validators=[validate_group_name]), allow_empty=True)
+
 class RethinkSerializer(serializers.Serializer):
     class Meta(object):
         table_name = None

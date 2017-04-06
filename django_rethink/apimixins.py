@@ -18,7 +18,25 @@ from django.core.exceptions import ImproperlyConfigured
 from django.http import Http404
 from django.utils.translation import ugettext as _
 from rest_framework import serializers
+from rest_framework import permissions
 from django_rethink.connection import get_connection
+
+class RethinkSerializerPermission(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        if request.user.is_superuser:
+            return True
+        permission = 'write'
+        if request.method in permissions.SAFE_METHODS:
+            permission = 'read'
+        elif request.method in ('POST',):
+            permission = 'create'
+        if (hasattr(request.user, 'is_global_readonly') and
+                request.user.is_global_readonly and
+                permission == 'read'
+            ):
+            return True
+        user_groups = set(request.user.groups.all().values_list('name', flat=True))
+        return len(user_groups.intersection(set(obj['permissions'][permission]))) > 0
 
 class RethinkAPIMixin(object):
     rethink_conn = None
