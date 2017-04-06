@@ -162,7 +162,7 @@ class RethinkSerializer(serializers.Serializer):
         for group in self.Meta.unique_together:
             value = [data.get(field, self.instance.get(field, None) if self.instance is not None else None) for field in group]
             for index in self.Meta.indices:
-                if isinstance(index, (tuple, list)) and index[1] == group:
+                if isinstance(index, (tuple, list)) and map(str, index[1]) == map(str, group):
                     query = r.table(self.Meta.table_name).get_all(value, index=index[0])
                     break
             else:
