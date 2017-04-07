@@ -22,21 +22,37 @@ from rest_framework import permissions
 from django_rethink.connection import get_connection
 
 class RethinkSerializerPermission(permissions.BasePermission):
-    def has_object_permission(self, request, view, obj):
-        if request.user.is_superuser:
-            return True
+    def get_permission(self, request, view, obj):
         permission = 'write'
         if request.method in permissions.SAFE_METHODS:
             permission = 'read'
         elif request.method in ('POST',):
             permission = 'create'
+        return permission
+
+    def get_groups(self, obj, permission):
+        groups = set()
+        if 'permissions' not in obj:
+            return groups
+        if permission == 'read' and 'read' in obj['permissions']:
+            groups.update(obj['permissions']['read'])
+        if permission in ('create', 'read') and 'create' in obj['permissions']:
+            groups.update(obj['permissions']['create'])
+        if permission in ('write', 'create', 'read') and 'write' in obj['permissions']:
+            groups.update(obj['permissions']['write'])
+        return groups
+
+    def has_object_permission(self, request, view, obj):
+        if request.user.is_superuser:
+            return True
+        permission = self.get_permission(request, view, obj)
         if (hasattr(request.user, 'is_global_readonly') and
                 request.user.is_global_readonly and
                 permission == 'read'
             ):
             return True
         user_groups = set(request.user.groups.all().values_list('name', flat=True))
-        return len(user_groups.intersection(set(obj['permissions'][permission]))) > 0
+        return len(user_groups.intersection(self.get_groups(obj, permission))) > 0
 
 class RethinkAPIMixin(object):
     rethink_conn = None

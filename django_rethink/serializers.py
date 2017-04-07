@@ -54,6 +54,7 @@ def dict_merge(dict1, dict2):
     return d
 
 def validate_group_name(group_name):
+    from django.contrib.auth.models import Group
     try:
         group = Group.objects.get(name=group_name)
         return True
@@ -69,9 +70,9 @@ def validate_group_name(group_name):
         raise serializers.ValidationError("group %s does not exist" % group_name)
 
 class PermissionsSerializer(serializers.Serializer):
-    read = serializers.ListField(child=serializers.CharField(validators=[validate_group_name]), allow_empty=True)
-    create = serializers.ListField(child=serializers.CharField(validators=[validate_group_name]), allow_empty=True)
-    write = serializers.ListField(child=serializers.CharField(validators=[validate_group_name]), allow_empty=True)
+    read = serializers.ListField(child=serializers.CharField(validators=[validate_group_name]), allow_empty=True, required=False)
+    create = serializers.ListField(child=serializers.CharField(validators=[validate_group_name]), allow_empty=True, required=False)
+    write = serializers.ListField(child=serializers.CharField(validators=[validate_group_name]), allow_empty=True, required=False)
 
 class RethinkSerializer(serializers.Serializer):
     class Meta(object):
@@ -162,7 +163,7 @@ class RethinkSerializer(serializers.Serializer):
         for group in self.Meta.unique_together:
             value = [data.get(field, self.instance.get(field, None) if self.instance is not None else None) for field in group]
             for index in self.Meta.indices:
-                if isinstance(index, (tuple, list)) and map(str, index[1]) == map(str, group):
+                if isinstance(index, (tuple, list)) and isinstance(index[1], tuple) and map(str, index[1]) == map(str, group):
                     query = r.table(self.Meta.table_name).get_all(value, index=index[0])
                     break
             else:
