@@ -17,6 +17,7 @@ import rethinkdb as r
 import six
 from django.utils import timezone
 from django_rethink.connection import get_connection
+from django.conf import settings
 
 def validate_unique_key(self, field):
     def _validate_unique_key(value):
