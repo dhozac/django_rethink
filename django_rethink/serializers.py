@@ -135,7 +135,8 @@ class RethinkSerializer(serializers.Serializer):
             return query
         else:
             rs = query.run(get_connection())
-            rs.reql_query = query
+            if not isinstance(rs, list):
+                rs.reql_query = query
             return rs
 
     @classmethod
