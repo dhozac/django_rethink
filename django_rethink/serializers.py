@@ -247,12 +247,6 @@ class HistorySerializerMixin(RethinkSerializer):
             result = filtered.replace(update, return_changes=True).run(self.conn)
         if result['replaced'] + result['unchanged'] == 0:
             raise SimultaneousObjectManipulationException("Simultaneous object manipulation error! %s %d" % (instance[self.Meta.pk_field], instance['version']))
-        queryset = r.table(self.Meta.table_name).get(instance[self.Meta.pk_field])
-        if self.partial:
-            queryset = queryset.update(validated_data, return_changes=True)
-        else:
-            queryset = queryset.replace(validated_data, return_changes=True)
-        result = queryset.run(self.conn)
         if len(result['changes']) == 0:
             new_val = instance
         else:
