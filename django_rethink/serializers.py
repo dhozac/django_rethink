@@ -207,12 +207,24 @@ class HistorySerializerMixin(RethinkSerializer):
 
     class Meta(RethinkSerializer.Meta):
         abstract = True
+        version_required = True
+
+    def validate_version(self, value):
+        if self.instance is not None and value != self.instance['version']:
+            raise serializers.ValidationError("version is not the expected %d" % self.instance['version'])
+        return value
+
+    def validate(self, data):
+        data = super(HistorySerializerMixin, self).validate(data)
+        if hasattr(self.Meta, 'log_required') and self.Meta.log_required and 'log' not in data:
+            raise serializers.ValidationError("log is required")
+        if hasattr(self.Meta, 'version_required') and self.Meta.version_required and 'version' not in data:
+            raise serializers.ValidationError("version is required")
+        return data
 
     def create(self, validated_data):
         if 'log' in validated_data:
             log = validated_data.pop('log')
-        elif hasattr(self.Meta, 'log_required') and self.Meta.log_required:
-            raise serializers.ValidationError("log is required")
         else:
             log = None
         if 'version' not in validated_data:
@@ -233,14 +245,16 @@ class HistorySerializerMixin(RethinkSerializer):
         update = dict(validated_data)
         if 'log' in update:
             log = update.pop('log')
-        elif hasattr(self.Meta, 'log_required') and self.Meta.log_required:
-            raise serializers.ValidationError("log is required")
         else:
             log = None
-        update['version'] = validated_data['version'] + 1
+        if 'version' in update:
+            old_version = validated_data['version']
+        else:
+            old_version = self.instance['version']
+        update['version'] = old_version + 1
         filtered = r.table(self.Meta.table_name) \
                    .get_all(instance[self.Meta.pk_field]) \
-                   .filter(r.row['version'] == validated_data['version'])
+                   .filter(r.row['version'] == old_version)
         if self.partial:
             result = filtered.update(update, return_changes=True).run(self.conn)
         else:
