@@ -189,7 +189,7 @@ class HistorySerializer(RethinkSerializer):
     object_type = serializers.CharField(required=True)
     object = serializers.DictField(required=True)
     timestamp = serializers.DateTimeField(required=True)
-    username = serializers.CharField(required=True)
+    username = serializers.CharField(required=False, allow_null=True)
     message = serializers.CharField(required=False, allow_null=True)
 
     class Meta(RethinkSerializer.Meta):
@@ -247,10 +247,10 @@ class HistorySerializerMixin(RethinkSerializer):
             log = update.pop('log')
         else:
             log = None
-        if 'version' in update:
+        if 'version' in validated_data:
             old_version = validated_data['version']
         else:
-            old_version = self.instance['version']
+            old_version = instance['version']
         update['version'] = old_version + 1
         filtered = r.table(self.Meta.table_name) \
                    .get_all(instance[self.Meta.pk_field]) \
