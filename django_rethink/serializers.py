@@ -295,3 +295,12 @@ class HistorySerializerMixin(RethinkSerializer):
         history.is_valid(raise_exception=True)
         history.save()
         return result['deleted'] > 0
+
+class LockSerializer(RethinkSerializer):
+    id = serializers.CharField(read_only=True)
+    token = serializers.CharField(required=True)
+    server = serializers.CharField(required=True)
+    timestamp = serializers.DateTimeField(required=True)
+
+    class Meta(RethinkSerializer.Meta):
+        table_name = 'locks'
