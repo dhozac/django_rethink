@@ -15,9 +15,7 @@
 from django.core.management.base import BaseCommand, CommandError
 import rethinkdb as r
 from importlib import import_module
-
-def all_subclasses(cls):
-    return cls.__subclasses__() + [g for s in cls.__subclasses__() for g in all_subclasses(s)]
+from django_rethink.tasks import all_subclasses
 
 class Command(BaseCommand):
     help = 'Creates a database in the Rethink database configured.'

@@ -15,6 +15,7 @@
 from rest_framework import serializers
 import rethinkdb as r
 import six
+import deepdiff
 from django.utils import timezone
 from django_rethink.connection import get_connection
 from django.conf import settings
@@ -29,6 +30,38 @@ def validate_unique_key(self, field):
                 pass
         return value
     return _validate_unique_key
+
+def validate_group_name(group_name):
+    from django.contrib.auth.models import Group
+    try:
+        group = Group.objects.get(name=group_name)
+        return True
+    except Group.DoesNotExist:
+        if hasattr(settings, 'AUTH_LDAP_SERVER_URI'):
+            import ldap
+            l = ldap.initialize(settings.AUTH_LDAP_SERVER_URI)
+            if settings.AUTH_LDAP_START_TLS:
+                l.start_tls_s()
+            result = settings.AUTH_LDAP_GROUP_SEARCH.search_with_additional_term_string("(cn=%s)").execute(l, filterargs=(group_name,))
+            if len(result) > 0:
+                return True
+        raise serializers.ValidationError("group %s does not exist" % group_name)
+
+def validate_username(username):
+    from django.contrib.auth import get_user_model
+    model = get_user_model()
+    try:
+        user = model.objects.get(username=username)
+        return True
+    except model.DoesNotExist:
+        if hasattr(settings, 'AUTH_LDAP_SERVER_URI'):
+            l = ldap.initialize(settings.AUTH_LDAP_SERVER_URI)
+            if settings.AUTH_LDAP_START_TLS:
+                l.start_tls_s()
+            result = settings.AUTH_LDAP_USER_SEARCH.execute(l, filterargs=(username,))
+            if len(result) > 0:
+                return True
+        raise serializers.ValidationError("user %s does not exist" % username)
 
 class RethinkObjectNotFound(Exception):
     pass
@@ -53,22 +86,6 @@ def dict_merge(dict1, dict2):
         else:
             d[key] = dict2[key]
     return d
-
-def validate_group_name(group_name):
-    from django.contrib.auth.models import Group
-    try:
-        group = Group.objects.get(name=group_name)
-        return True
-    except Group.DoesNotExist:
-        if hasattr(settings, 'AUTH_LDAP_SERVER_URI'):
-            import ldap
-            l = ldap.initialize(settings.AUTH_LDAP_SERVER_URI)
-            if settings.AUTH_LDAP_START_TLS:
-                l.start_tls_s()
-            result = settings.AUTH_LDAP_GROUP_SEARCH.search_with_additional_term_string("(cn=%s)").execute(l, filterargs=(group_name,))
-            if len(result) > 0:
-                return True
-        raise serializers.ValidationError("group %s does not exist" % group_name)
 
 class PermissionsSerializer(serializers.Serializer):
     read = serializers.ListField(child=serializers.CharField(validators=[validate_group_name]), allow_empty=True, required=False)
@@ -304,3 +321,125 @@ class LockSerializer(RethinkSerializer):
 
     class Meta(RethinkSerializer.Meta):
         table_name = 'locks'
+
+class ReviewSerializer(RethinkSerializer):
+    id = serializers.CharField(read_only=True)
+    created = serializers.DateTimeField(default=serializers.CreateOnlyDefault(timezone.now))
+    state = serializers.ChoiceField(choices=['pending', 'approved', 'rejected', 'invalidated', 'executed'], required=True)
+    submitter = serializers.CharField(validators=[validate_username], required=True)
+    reviewers = serializers.ListField(child=serializers.CharField(validators=[validate_group_name]), required=True)
+    approvals_required = serializers.IntegerField(default=1, required=False)
+    approvals = serializers.ListField(child=serializers.CharField(validators=[validate_username]), required=False)
+
+    is_partial = serializers.BooleanField(required=True)
+    object_type = serializers.CharField(required=True)
+    object_id = serializers.CharField(required=True)
+    object = serializers.DictField(required=True)
+
+    class Meta(RethinkSerializer.Meta):
+        table_name = 'reviews'
+        indices = [
+            'submitter',
+            ('reviewers', {'multi': True}),
+        ]
+
+    def has_read_permission(self, user, user_groups=None):
+        if user_groups is None:
+            user_groups = set(user.groups.all().values_list('name', flat=True))
+        if user.is_superuser:
+            return True
+        if user.is_global_readonly:
+            return True
+
+        reviewers = set(self.instance.get('reviewers', []))
+        if len(user_groups.intersection(reviewers)) > 0:
+            return True
+
+        return False
+
+    # Write permissions are handled in validate()
+    has_write_permission = has_read_permission
+
+    def update(self, old_instance, validated_data):
+        new_instance = super(ReviewSerializer, self).update(old_instance, validated_data)
+        if old_instance['state'] == 'approved' and new_instance['state'] == 'executed':
+            from django_rethink.tasks import review_execute
+            review_execute.apply_async((new_instance,))
+        return new_instance
+
+    def validate(self, data):
+        if ('request' in self.context and
+            self.context['request'].user is not None):
+            user = self.context['request'].user
+            user_groups = set(self.context['request'].user.groups.all().values_list('name', flat=True))
+        else:
+            user = None
+            user_groups = set([])
+
+        if self.instance is None:
+            data['state'] = 'pending'
+            data['submitter'] = user.username
+            data['approvals'] = []
+            return data
+
+        diff = deepdiff.DeepDiff(dict_merge(data, self.instance) if self.partial else data, self.instance, view='tree')
+        for read_only_field in ['id', 'created', 'submitter', 'object_type', 'object_id', 'object']:
+            for change in diff.values():
+                for dl in change:
+                    if ((dl.all_up.t1_child_rel is not None and
+                            dl.all_up.t1_child_rel.param == read_only_field) or
+                            (dl.all_up.t2_child_rel is not None and
+                            dl.all_up.t2_child_rel.param == read_only_field)):
+                        raise serializers.ValidationError("%s is read-only after creation" % read_only_field)
+
+        new_approvals = set(data.get('approvals', [])).difference(set(self.instance['approvals']))
+        if len(new_approvals) > 0:
+            if new_approvals != set([user.username]):
+                raise serializers.ValidationError("attempted to add %r approvals, you can only add your own" % new_approvals)
+            if len(user_groups.intersection(set(self.instance['reviewers']))) == 0 and not user.is_superuser:
+                raise serializers.ValidationError("%s is not allowed to approve this review, must be member of %r" % (user.username, self.instance['reviewers']))
+            if user.username == self.instance['submitter']:
+                raise serializers.ValidationError("cannot approve your own request")
+
+        if (self.instance['state'] == 'pending' and
+            len(data.get('approvals', [])) >= self.instance.get('approvals_required', 1)):
+            data['state'] = 'approved'
+
+        STATE_TRANSITIONS = {
+            'pending': ['approved', 'rejected', 'invalidated'],
+            'approved': ['executed', 'rejected', 'invalidated'],
+            'rejected': ['pending'],
+            'invalidated': [],
+            'executed': [],
+        }
+        if 'state' in data and data['state'] not in STATE_TRANSITIONS[self.instance['state']]:
+            raise serializers.ValidationError("transition to state %s from %s is invalid" % (data['state'], self.instance['state']))
+
+        return data
+
+class NeedsReviewMixin(object):
+    def get_reviewers(self, instance):
+        return instance.get('permissions', {}).get('write', [])
+
+    def update(self, instance, data):
+        if (instance.get(self.Meta.needs_review_field, False) and
+                self.get_username() is not None and
+                not self.context.get('reviewed', False)):
+            review = ReviewSerializer(None, data={
+                'state': 'pending',
+                'submitter': self.get_username(),
+                'reviewers': self.get_reviewers(),
+                'is_partial': self.partial,
+                'object_type': self.Meta.table_name,
+                'object_id': instance[self.Meta.pk_field],
+                'object': data,
+            }, context=self.context)
+            review.is_valid(raise_exception=True)
+            review.save()
+            return instance
+        return super(NeedsReviewMixin, self).update(instance, data)
+
+    def delete(self):
+        if self.instance.get(self.Meta.needs_review_field, False):
+            raise serializers.ValidationError("'%s' field cannot be set when deleting" % self.Meta.needs_review_field)
+        return super(NeedsReviewMixin, self).delete()

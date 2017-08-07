@@ -20,6 +20,7 @@ import logging
 import rethinkdb as r
 from celery import shared_task
 from django_rethink.connection import get_connection
+from django_rethink.serializers import RethinkSerializer
 
 logger = logging.getLogger("django_rethink.tasks")
 
@@ -49,3 +50,21 @@ def rethinkdb_unlock(self, name, token=None):
         logger.info("unlocked %s", name)
     else:
         logger.warning("unable to unlock %s, token was not %s", name, token)
+
+def all_subclasses(cls):
+    return cls.__subclasses__() + [g for s in cls.__subclasses__() for g in all_subclasses(s)]
+
+@shared_task
+def review_execute(review):
+    for cls in all_subclasses(RethinkSerializer):
+        if cls.Meta.table_name == review['object_type']:
+            break
+    else:
+        raise Exception("unable to find class for object type %s" % review['object_type'])
+    serializer = cls(cls.get(id=review['object_id']),
+        data=review['object'],
+        partial=review['is_partial'],
+        context={'username': review['submitter'], 'reviewed': True}
+    )
+    serializer.is_valid(raise_exception=True)
+    return serializer.save()

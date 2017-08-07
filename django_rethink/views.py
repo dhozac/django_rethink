@@ -20,7 +20,10 @@ from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.utils.translation import ugettext as _
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.encoding import force_text
+from rest_framework import generics, permissions
 from django_rethink.connection import get_connection
+from django_rethink.apimixins import RethinkAPIMixin
+from django_rethink.serializers import ReviewSerializer
 
 class RethinkMixin(object):
     rethink_conn = None
@@ -141,3 +144,19 @@ class RethinkUpdateView(RethinkSingleObjectMixin, View):
     @csrf_exempt
     def dispatch(self, *args, **kwargs):
         return super(RethinkUpdateView, self).dispatch(*args, **kwargs)
+
+class HasReviewPermission(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        return view.get_serializer(obj).has_read_permission(request.user)
+
+class ReviewListView(RethinkAPIMixin, generics.ListAPIView):
+    pk_field = 'id'
+    serializer_class = ReviewSerializer
+    group_filter_fields = ['reviewers']
+    permission_classes = (permissions.IsAuthenticated, HasReviewPermission)
+
+class ReviewDetailView(RethinkAPIMixin, generics.RetrieveUpdateAPIView):
+    pk_field = 'id'
+    serializer_class = ReviewSerializer
+    group_filter_fields = ['reviewers']
+    permission_classes = (permissions.IsAuthenticated, HasReviewPermission)
