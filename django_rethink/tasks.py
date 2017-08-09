@@ -28,23 +28,21 @@ def _distributed_lock_id(name):
     return name
 
 @shared_task(bind=True)
-def rethinkdb_lock(self, name, interval=1, max_retries=300, token=None):
+def rethinkdb_lock(self, name, token=None):
     if token is None:
         token = self.request.root_id
-    retries = 0
-    while retries < max_retries:
-        if retries > 0:
-            time.sleep(interval)
-        result = r.table("locks").insert({
-            "id": _distributed_lock_id(name),
-            "token": token,
-            "server": socket.gethostname(),
-            "timestamp": r.now(),
-        }).run(get_connection())
-        if result['inserted'] == 0:
-            logger.info("locked %s with token %s", name, token)
-            return token
-    raise Exception("failed to acquire lock %s")
+    result = r.table("locks").insert({
+        "id": _distributed_lock_id(name),
+        "token": token,
+        "server": socket.gethostname(),
+        "timestamp": r.now(),
+    }).run(get_connection())
+    if result['inserted'] == 0:
+        logger.info("locked %s with token %s", name, token)
+        return token
+    else:
+        self.retry(exc=Exception("failed to acquire lock %s" % name),
+                   countdown=1, max_retries=300)
 
 @shared_task(bind=True)
 def rethinkdb_unlock(self, name, token=None):
