@@ -45,15 +45,21 @@ def rethinkdb_lock(self, name, token=None):
                    countdown=1, max_retries=300)
 
 @shared_task(bind=True)
-def rethinkdb_unlock(self, name, token=None):
-    if token is None:
-        token = self.request.root_id
+def rethinkdb_unlock(self, *args, **kwargs):
+    if 'name' in kwargs:
+        name = kwargs['name']
+    else:
+        name = args[0]
+        args = args[1:]
+    token = kwargs.get('token', self.request.root_id)
     result = r.table("locks").get_all(_distributed_lock_id(name)). \
         filter({"token": token}).delete().run(get_connection())
     if result['deleted'] == 1:
         logger.info("unlocked %s", name)
     else:
         logger.warning("unable to unlock %s, token was not %s", name, token)
+    if len(args) > 0:
+        return args[0]
 
 def all_subclasses(cls):
     return cls.__subclasses__() + [g for s in cls.__subclasses__() for g in all_subclasses(s)]
