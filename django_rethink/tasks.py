@@ -38,11 +38,11 @@ def rethinkdb_lock(self, name, token=None):
         "timestamp": r.now(),
     }).run(get_connection())
     if result['inserted'] == 0:
-        logger.info("locked %s with token %s", name, token)
-        return token
-    else:
         self.retry(exc=Exception("failed to acquire lock %s" % name),
                    countdown=1, max_retries=300)
+    else:
+        logger.info("locked %s with token %s", name, token)
+        return token
 
 @shared_task(bind=True)
 def rethinkdb_unlock(self, *args, **kwargs):
