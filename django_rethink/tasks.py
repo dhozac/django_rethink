@@ -20,7 +20,7 @@ import logging
 import rethinkdb as r
 from celery import shared_task
 from django_rethink.connection import get_connection
-from django_rethink.serializers import RethinkSerializer
+from django_rethink.serializers import RethinkSerializer, RethinkObjectNotFound
 
 logger = logging.getLogger("django_rethink.tasks")
 
@@ -71,7 +71,11 @@ def review_execute(review):
             break
     else:
         raise Exception("unable to find class for object type %s" % review['object_type'])
-    serializer = cls(cls.get(id=review['object_id']),
+    try:
+        obj = cls.get(id=review['object_id'])
+    except RethinkObjectNotFound:
+        obj = None
+    serializer = cls(obj,
         data=review['object'],
         partial=review['is_partial'],
         context={'username': review['submitter'], 'reviewed': True}

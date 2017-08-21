@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from rest_framework import serializers
+import uuid
 import rethinkdb as r
 import six
 import deepdiff
 from django.utils import timezone
+from rest_framework import serializers
 from django_rethink.connection import get_connection
 from django.conf import settings
 
@@ -418,28 +419,39 @@ class ReviewSerializer(RethinkSerializer):
         return data
 
 class NeedsReviewMixin(object):
-    def get_reviewers(self, instance):
+    def get_reviewers(self, instance, data):
         return instance.get('permissions', {}).get('write', [])
 
-    def update(self, instance, data):
-        if (instance.get(self.Meta.needs_review_field, False) and
+    def needs_review(self, instance, data):
+        if instance is None:
+            return False
+        return instance.get(self.Meta.needs_review_field, False)
+
+    def create_or_update(self, supered, instance, data):
+        if (self.needs_review(instance, data) and
                 self.get_username() is not None and
                 not self.context.get('reviewed', False)):
             review = ReviewSerializer(None, data={
                 'state': 'pending',
                 'submitter': self.get_username(),
-                'reviewers': self.get_reviewers(),
+                'reviewers': self.get_reviewers(instance, data),
                 'is_partial': self.partial,
                 'object_type': self.Meta.table_name,
-                'object_id': instance[self.Meta.pk_field],
+                'object_id': instance[self.Meta.pk_field] if instance else str(uuid.uuid4()),
                 'object': data,
             }, context=self.context)
             review.is_valid(raise_exception=True)
-            review.save()
-            return instance
-        return super(NeedsReviewMixin, self).update(instance, data)
+            result = review.save()
+            raise serializers.ValidationError(["review created", result['id']])
+        return supered()
+
+    def create(self, data):
+        return self.create_or_update(lambda: super(NeedsReviewMixin, self).create(data), None, data)
+
+    def update(self, instance, data):
+        return self.create_or_update(lambda: super(NeedsReviewMixin, self).update(instance, data), instance, data)
 
     def delete(self):
-        if self.instance.get(self.Meta.needs_review_field, False):
+        if self.needs_review(self.instance, {}):
             raise serializers.ValidationError("'%s' field cannot be set when deleting" % self.Meta.needs_review_field)
         return super(NeedsReviewMixin, self).delete()
