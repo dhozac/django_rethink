@@ -154,6 +154,13 @@ class ReviewListView(RethinkAPIMixin, generics.ListAPIView):
     serializer_class = ReviewSerializer
     group_filter_fields = ['reviewers']
     permission_classes = (permissions.IsAuthenticated, HasReviewPermission)
+    def default_filter_queryset(self, queryset):
+        if '_include_object' in self.request.query_params:
+            return queryset.merge(lambda review: {
+                "orig_object": r.table(review['object_type']).get(review['object_id'])
+            })
+        else:
+            return queryset
 
 class ReviewDetailView(RethinkAPIMixin, generics.RetrieveUpdateAPIView):
     pk_field = 'id'

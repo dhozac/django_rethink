@@ -337,6 +337,8 @@ class ReviewSerializer(RethinkSerializer):
     object_id = serializers.CharField(required=True)
     object = serializers.DictField(required=True)
 
+    orig_object = serializers.ReadOnlyField(required=False)
+
     class Meta(RethinkSerializer.Meta):
         table_name = 'reviews'
         indices = [
@@ -379,7 +381,8 @@ class ReviewSerializer(RethinkSerializer):
 
         if self.instance is None:
             data['state'] = 'pending'
-            data['submitter'] = user.username
+            if user is not None:
+                data['submitter'] = user.username
             data['approvals'] = []
             return data
 
