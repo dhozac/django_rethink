@@ -323,7 +323,7 @@ class LockSerializer(RethinkSerializer):
     class Meta(RethinkSerializer.Meta):
         table_name = 'locks'
 
-class ReviewSerializer(RethinkSerializer):
+class ReviewSerializer(HistorySerializerMixin):
     id = serializers.CharField(read_only=True)
     created = serializers.DateTimeField(default=serializers.CreateOnlyDefault(timezone.now))
     state = serializers.ChoiceField(choices=['pending', 'approved', 'rejected', 'invalidated', 'executed'], required=True)
