@@ -16,8 +16,8 @@ import rethinkdb as r
 from django.conf import settings
 
 class RethinkConnectionReconnector(object):
-    def __init__(self, host, port, db):
-        self.connection = r.connect(host=host, port=port, db=db)
+    def __init__(self, connection):
+        self.connection = connection
     def _start(self, *args, **kwargs):
         if not self.connection.is_open():
             self.connection.reconnect(False)
@@ -34,5 +34,9 @@ except ImportError:
 
 def get_connection():
     if not hasattr(connection, 'conn'):
-        connection.conn = RethinkConnectionReconnector(host=settings.RETHINK_DB_HOST, port=settings.RETHINK_DB_PORT, db=settings.RETHINK_DB_DB)
+        connection.conn = RethinkConnectionReconnector(
+            r.connect(
+                host=settings.RETHINK_DB_HOST,
+                port=settings.RETHINK_DB_PORT,
+                db=settings.RETHINK_DB_DB))
     return connection.conn
