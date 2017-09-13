@@ -80,5 +80,8 @@ def review_execute(review):
         partial=review['is_partial'],
         context={'username': review['submitter'], 'reviewed': True}
     )
-    serializer.is_valid(raise_exception=True)
-    return serializer.save()
+    if review.get('is_delete', False):
+        return serializer.delete()
+    else:
+        serializer.is_valid(raise_exception=True)
+        return serializer.save()

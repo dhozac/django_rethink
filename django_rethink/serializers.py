@@ -333,6 +333,7 @@ class ReviewSerializer(HistorySerializerMixin):
     approvals = serializers.ListField(child=serializers.CharField(validators=[validate_username]), required=False)
 
     is_partial = serializers.BooleanField(required=True)
+    is_delete = serializers.BooleanField(required=False)
     object_type = serializers.CharField(required=True)
     object_id = serializers.CharField(required=True)
     object = serializers.DictField(required=True)
@@ -430,7 +431,7 @@ class NeedsReviewMixin(object):
             return False
         return instance.get(self.Meta.needs_review_field, False)
 
-    def create_or_update(self, supered, instance, data):
+    def create_or_update(self, supered, instance, data, is_delete=False):
         if (self.needs_review(instance, data) and
                 self.get_username() is not None and
                 not self.context.get('reviewed', False)):
@@ -439,6 +440,7 @@ class NeedsReviewMixin(object):
                 'submitter': self.get_username(),
                 'reviewers': self.get_reviewers(instance, data),
                 'is_partial': self.partial,
+                'is_delete': is_delete,
                 'object_type': self.Meta.table_name,
                 'object_id': instance[self.Meta.pk_field] if instance else str(uuid.uuid4()),
                 'object': data,
@@ -455,6 +457,4 @@ class NeedsReviewMixin(object):
         return self.create_or_update(lambda: super(NeedsReviewMixin, self).update(instance, data), instance, data)
 
     def delete(self):
-        if self.needs_review(self.instance, {}):
-            raise serializers.ValidationError("'%s' field cannot be set when deleting" % self.Meta.needs_review_field)
-        return super(NeedsReviewMixin, self).delete()
+        return self.create_or_update(lambda: super(NeedsReviewMixin, self).delete(), self.instance, {}, is_delete=True)
