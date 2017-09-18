@@ -295,13 +295,18 @@ class HistorySerializerMixin(RethinkSerializer):
         return new_val
 
     def delete(self):
-        data = self.context['request'].data
-        if 'log' not in data:
-            if hasattr(self.Meta, 'log_required') and self.Meta.log_required:
-                raise serializers.ValidationError("'log' field is required when deleting an object")
-            log = None
+        if 'request' in self.context:
+            data = self.context['request'].data
+            if 'log' not in data:
+                if hasattr(self.Meta, 'log_required') and self.Meta.log_required:
+                    raise serializers.ValidationError("'log' field is required when deleting an object")
+                log = None
+            else:
+                log = data['log']
+        elif 'log' in self.context:
+            log = self.context['log']
         else:
-            log = data['log']
+            log = None
         result = r.table(self.Meta.table_name).get(self.instance[self.Meta.pk_field]).delete(return_changes=True).run(self.conn)
         history = HistorySerializer(None, data={
             'object_type': self.Meta.table_name,
