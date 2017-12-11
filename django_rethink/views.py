@@ -21,9 +21,10 @@ from django.utils.translation import ugettext as _
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.encoding import force_text
 from rest_framework import generics, permissions
+from rest_framework.exceptions import NotFound, PermissionDenied
 from django_rethink.connection import get_connection
-from django_rethink.apimixins import RethinkAPIMixin
-from django_rethink.serializers import ReviewSerializer
+from django_rethink.apimixins import RethinkAPIMixin, RethinkSerializerPermission
+from django_rethink.serializers import RethinkSerializer, HistorySerializer, ReviewSerializer
 
 class RethinkMixin(object):
     rethink_conn = None
@@ -167,3 +168,39 @@ class ReviewDetailView(RethinkAPIMixin, generics.RetrieveUpdateAPIView):
     serializer_class = ReviewSerializer
     group_filter_fields = ['reviewers']
     permission_classes = (permissions.IsAuthenticated, HasReviewPermission)
+
+class HistoryListView(RethinkAPIMixin, generics.ListAPIView):
+    serializer_class = HistorySerializer
+    permission_classes = (permissions.IsAuthenticated,)
+    def get_queryset(self):
+        from django_rethink.tasks import all_subclasses
+        for sub_serializer_class in all_subclasses(RethinkSerializer):
+            if sub_serializer_class.Meta.table_name == self.kwargs['object_type']:
+                break
+        else:
+            raise NotFound()
+        queryset = super(HistoryListView, self).get_queryset()
+        queryset = queryset.get_all(
+            [self.kwargs['object_type'], self.kwargs['pk']],
+            index="object_type_id").order_by("timestamp")
+
+        try:
+            # .count() is to ensure we get the last version before an object
+            # was deleted
+            last = queryset.filter(lambda r: r['object'].count() > 1) \
+                .nth(-1).run(self.get_connection())
+        except:
+            raise NotFound()
+
+        if 'permissions' in sub_serializer_class._declared_fields:
+            if not RethinkSerializerPermission().has_object_permission(self.request, self, last['object']):
+                raise PermissionDenied()
+
+        elif hasattr(sub_serializer_class, 'has_read_permission'):
+            if not sub_serializer_class(last['object']).has_read_permission(self.request.user.username):
+                raise PermissionDenied()
+
+        else:
+            raise NotFound()
+
+        return queryset
