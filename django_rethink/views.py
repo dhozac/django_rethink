@@ -70,7 +70,7 @@ class RethinkSingleObjectMixin(ContextMixin, RethinkMixin):
 
         try:
             obj = queryset.run(self.get_connection()).next()
-        except r.net.DefaultCursorEmpty:
+        except r.errors.ReqlCursorEmpty:
             raise Http404(_("No %(verbose_name)s found matching the query") %
                           {'verbose_name': self.table_name})
 

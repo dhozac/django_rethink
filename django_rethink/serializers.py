@@ -162,12 +162,12 @@ class RethinkSerializer(serializers.Serializer):
         rs = cls.filter(*args, **fields)
         try:
             result = rs.next()
-        except r.net.DefaultCursorEmpty:
+        except r.errors.ReqlCursorEmpty:
             raise RethinkObjectNotFound("Query %s returned no objects" % rs.reql_query)
         try:
             rs.next()
             raise RethinkMultipleObjectsFound("Query %s returned more than one object" % rs.reql_query)
-        except r.net.DefaultCursorEmpty:
+        except r.errors.ReqlCursorEmpty:
             pass
         return result
 
