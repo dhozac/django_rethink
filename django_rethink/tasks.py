@@ -28,7 +28,7 @@ def _distributed_lock_id(name):
     return name
 
 @shared_task(bind=True)
-def rethinkdb_lock(self, name, token=None):
+def rethinkdb_lock(self, name, token=None, timeout=300):
     if token is None:
         token = self.request.root_id
     result = r.table("locks").insert({
@@ -39,7 +39,7 @@ def rethinkdb_lock(self, name, token=None):
     }).run(get_connection())
     if result['inserted'] == 0:
         self.retry(exc=Exception("failed to acquire lock %s" % name),
-                   countdown=1, max_retries=300)
+                   countdown=1, max_retries=timeout)
     else:
         logger.info("locked %s with token %s", name, token)
         return token
