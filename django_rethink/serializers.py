@@ -17,6 +17,7 @@ import rethinkdb as r
 import six
 import deepdiff
 from django.utils import timezone
+from django.urls import reverse
 from rest_framework import serializers
 from django_rethink.connection import get_connection
 from django.conf import settings
@@ -94,6 +95,9 @@ class PermissionsSerializer(serializers.Serializer):
     write = serializers.ListField(child=serializers.CharField(validators=[validate_group_name]), allow_empty=True, required=False)
 
 class RethinkSerializer(serializers.Serializer):
+    link = serializers.URLField(read_only=True)
+    url_field_name = 'link'
+
     class Meta(object):
         table_name = None
         pk_field = 'id'
@@ -201,6 +205,16 @@ class RethinkSerializer(serializers.Serializer):
             return dict_merge(self.instance, data)
         else:
             return data
+
+    def to_representation(self, instance):
+        ret = super(RethinkSerializer, self).to_representation(instance)
+        link = self.create_link(instance)
+        if link is not None:
+            ret['link'] = link
+        return ret
+
+    def create_link(self, instance):
+        return None
 
 class HistorySerializer(RethinkSerializer):
     id = serializers.CharField(read_only=True)
@@ -426,6 +440,9 @@ class ReviewSerializer(HistorySerializerMixin):
             raise serializers.ValidationError("transition to state %s from %s is invalid" % (data['state'], self.instance['state']))
 
         return data
+
+    def create_link(self, instance):
+        return reverse('django_rethink:review_detail', kwargs={'id': instance['id']})
 
 class NeedsReviewMixin(object):
     def get_reviewers(self, instance, data):
