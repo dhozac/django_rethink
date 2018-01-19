@@ -5,7 +5,7 @@ import os
 import re
 
 setup(name='django_rethink',
-      version='0.3.9',
+      version='0.3.10',
       description='Library to use RethinkDB with Django REST framework',
       author='Klarna IT Operations Core Services',
       author_email='itops.core-services@klarna.com',
