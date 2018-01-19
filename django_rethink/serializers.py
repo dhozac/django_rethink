@@ -442,7 +442,7 @@ class ReviewSerializer(HistorySerializerMixin):
         return data
 
     def create_link(self, instance):
-        return reverse('django_rethink:review_detail', kwargs={'id': instance['id']}, request=self.request)
+        return reverse('django_rethink:review_detail', kwargs={'id': instance['id']}, request=self.context.get('request'))
 
 class NeedsReviewMixin(object):
     def get_reviewers(self, instance, data):
