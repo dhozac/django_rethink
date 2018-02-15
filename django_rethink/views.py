@@ -192,12 +192,12 @@ class HistoryListView(RethinkAPIMixin, generics.ListAPIView):
         except:
             raise NotFound()
 
-        if 'permissions' in sub_serializer_class._declared_fields:
-            if not RethinkSerializerPermission().has_object_permission(self.request, self, last['object']):
+        if hasattr(sub_serializer_class, 'has_read_permission'):
+            if not sub_serializer_class(last['object']).has_read_permission(self.request.user.username):
                 raise PermissionDenied()
 
-        elif hasattr(sub_serializer_class, 'has_read_permission'):
-            if not sub_serializer_class(last['object']).has_read_permission(self.request.user.username):
+        elif 'permissions' in sub_serializer_class._declared_fields:
+            if not RethinkSerializerPermission().has_object_permission(self.request, self, last['object']):
                 raise PermissionDenied()
 
         else:
