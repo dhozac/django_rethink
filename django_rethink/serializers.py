@@ -345,6 +345,7 @@ class LockSerializer(RethinkSerializer):
 class ReviewSerializer(HistorySerializerMixin):
     id = serializers.CharField(read_only=True)
     created = serializers.DateTimeField(default=serializers.CreateOnlyDefault(timezone.now))
+    updated = serializers.DateTimeField(default=timezone.now)
     state = serializers.ChoiceField(choices=['pending', 'approved', 'rejected', 'invalidated', 'executed'], required=True)
     submitter = serializers.CharField(validators=[validate_username], required=True)
     reviewers = serializers.ListField(child=serializers.CharField(validators=[validate_group_name]), required=True)
