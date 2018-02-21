@@ -67,8 +67,8 @@ class TestHistoryHasReadPermissionSerializer(HistorySerializerMixin):
     user = serializers.CharField(required=True)
     class Meta(RethinkSerializer.Meta):
         table_name = 'django_rethink_test_history_has_read_permission'
-    def has_read_permission(self, username):
-        return self.instance['user'] == username
+    def has_read_permission(self, user):
+        return self.instance['user'] == user.username
 
 @override_settings(
     RETHINK_DB_DB=os.environ.get('RETHINK_DB_DB', 'django_rethinkci'),

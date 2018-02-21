@@ -169,19 +169,16 @@ class ReviewDetailView(RethinkAPIMixin, generics.RetrieveUpdateAPIView):
     group_filter_fields = ['reviewers']
     permission_classes = (permissions.IsAuthenticated, HasReviewPermission)
 
-class HistoryListView(RethinkAPIMixin, generics.ListAPIView):
+class ObjectHistoryListView(RethinkAPIMixin, generics.ListAPIView):
     serializer_class = HistorySerializer
     permission_classes = (permissions.IsAuthenticated,)
+    pk_url_kwarg = None
+    slug_url_kwarg = None
     def get_queryset(self):
-        from django_rethink.tasks import all_subclasses
-        for sub_serializer_class in all_subclasses(RethinkSerializer):
-            if sub_serializer_class.Meta.table_name == self.kwargs['object_type']:
-                break
-        else:
-            raise NotFound()
-        queryset = super(HistoryListView, self).get_queryset()
+        sub_serializer_class, object_id = self.get_serializer_and_id()
+        queryset = super(ObjectHistoryListView, self).get_queryset()
         queryset = queryset.get_all(
-            [self.kwargs['object_type'], self.kwargs['pk']],
+            [sub_serializer_class.Meta.table_name, object_id],
             index="object_type_id").order_by("timestamp")
 
         try:
@@ -193,7 +190,7 @@ class HistoryListView(RethinkAPIMixin, generics.ListAPIView):
             raise NotFound()
 
         if hasattr(sub_serializer_class, 'has_read_permission'):
-            if not sub_serializer_class(last['object']).has_read_permission(self.request.user.username):
+            if not sub_serializer_class(last['object']).has_read_permission(self.request.user):
                 raise PermissionDenied()
 
         elif 'permissions' in sub_serializer_class._declared_fields:
@@ -204,3 +201,13 @@ class HistoryListView(RethinkAPIMixin, generics.ListAPIView):
             raise NotFound()
 
         return queryset
+
+class HistoryListView(ObjectHistoryListView):
+    def get_serializer_and_id(self):
+        from django_rethink.tasks import all_subclasses
+        for sub_serializer_class in all_subclasses(RethinkSerializer):
+            if sub_serializer_class.Meta.table_name == self.kwargs['object_type']:
+                break
+        else:
+            raise NotFound()
+        return (sub_serializer_class, self.kwargs['pk'])
