@@ -14,7 +14,6 @@
 
 import uuid
 import rethinkdb as r
-import six
 import deepdiff
 from django.utils import timezone
 from rest_framework import serializers
