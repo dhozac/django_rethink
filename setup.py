@@ -5,7 +5,7 @@ import os
 import re
 
 setup(name='django_rethink',
-      version='0.3.12',
+      version='0.3.13',
       license='Apache Software License',
       description='Library to use RethinkDB with Django REST framework',
       author='Klarna Bank AB',
