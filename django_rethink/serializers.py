@@ -371,7 +371,7 @@ class ReviewSerializer(HistorySerializerMixin):
             user_groups = set(user.groups.all().values_list('name', flat=True))
         if user.is_superuser:
             return True
-        if user.is_global_readonly:
+        if hasattr(user, 'is_global_readonly') and user.is_global_readonly:
             return True
 
         reviewers = set(self.instance.get('reviewers', []))

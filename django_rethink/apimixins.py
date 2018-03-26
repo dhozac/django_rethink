@@ -114,7 +114,11 @@ class RethinkAPIMixin(object):
         return queryset
 
     def _filter_queryset(self, queryset):
-        if self.group_filter_fields is not None and not self.request.user.is_superuser and (not self.request.user.is_global_readonly or self.request.method not in ('GET',)):
+        if self.group_filter_fields is not None and
+                not self.request.user.is_superuser and
+                ((hasattr(self.request.user, 'is_global_readonly') and
+                    not self.request.user.is_global_readonly) or
+                self.request.method not in ('GET',)):
             groups = self.request.user.groups.all().values_list('name', flat=True)
             if self.group_filter_extras:
                 groups = list(groups) + self.group_filter_extras
