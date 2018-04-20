@@ -21,16 +21,21 @@ from rest_framework.reverse import reverse
 from django_rethink.connection import get_connection
 from django.conf import settings
 
-def validate_unique_key(self, field):
-    def _validate_unique_key(value):
-        if self.instance is None:
+class validate_unique_key(object):
+    def __init__(self, field):
+        self.field = field
+
+    def set_context(self, serializer_field):
+        self.serializer = self.serializer_field.parent
+
+    def __call__(self, value):
+        if self.serializer.instance is None:
             try:
-                self.get(**{field: value})
-                raise serializers.ValidationError('%s="%s" is a duplicate' % (field, value))
+                self.serializer.get(**{self.field: value})
+                raise serializers.ValidationError('%s="%s" is a duplicate' % (self.field, value))
             except RethinkObjectNotFound:
                 pass
         return value
-    return _validate_unique_key
 
 def validate_group_name(group_name):
     from django.contrib.auth.models import Group
@@ -108,11 +113,15 @@ class RethinkSerializer(serializers.Serializer):
         unique_together = []
 
     def __init__(self, *args, **kwargs):
-        if self.Meta.slug_field:
-            setattr(self, 'validate_' + self.Meta.slug_field, validate_unique_key(self, self.Meta.slug_field))
-        for field in self.Meta.unique:
-            setattr(self, 'validate_' + field, validate_unique_key(self, field))
         super(RethinkSerializer, self).__init__(*args, **kwargs)
+        if self.Meta.slug_field:
+            field = self.fields.get(self.Meta.slug_field, None)
+            if field is not None:
+                field.validators.append(validate_unique_key(self.Meta.slug_field))
+        for field_name in self.Meta.unique:
+            field = self.fields.get(field_name, None)
+            if field is not None:
+                field.validators.append(validate_unique_key(field_name))
         self.conn = get_connection()
 
     def create(self, validated_data):
