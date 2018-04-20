@@ -26,7 +26,7 @@ class validate_unique_key(object):
         self.field = field
 
     def set_context(self, serializer_field):
-        self.serializer = self.serializer_field.parent
+        self.serializer = serializer_field.parent
 
     def __call__(self, value):
         if self.serializer.instance is None:
