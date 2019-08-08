@@ -5,14 +5,19 @@ import os
 import re
 
 setup(name='django_rethink',
-      version='0.4.1',
+      version='0.5.0',
       license='Apache Software License',
       description='Library to use RethinkDB with Django REST framework',
       author='Klarna Bank AB',
       author_email='daniel.zakrisson@klarna.com',
       url='https://github.com/dhozac/django_rethink',
       packages=['django_rethink', 'django_rethink.management', 'django_rethink.management.commands'],
-      install_requires=map(lambda x: re.sub(r".*#egg=(.*)", lambda m: m.group(1), x.strip()), open(os.path.join(os.path.dirname(__file__), 'requirements.txt')).readlines()),
+      install_requires=[
+          'celery',
+          'djangorestframework>3.4.0',
+          'rethinkdb',
+          'deepdiff>3.2.0',
+      ],
       include_package_data=True,
       zip_safe=True,
       classifiers=[

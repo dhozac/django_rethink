@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
 import json
 import rethinkdb as r
 from django.views.generic.base import ContextMixin, View
@@ -69,7 +70,7 @@ class RethinkSingleObjectMixin(ContextMixin, RethinkMixin):
         queryset = self.get_object_qs(queryset)
 
         try:
-            obj = queryset.run(self.get_connection()).next()
+            obj = next(queryset.run(self.get_connection()))
         except r.errors.ReqlCursorEmpty:
             raise Http404(_("No %(verbose_name)s found matching the query") %
                           {'verbose_name': self.table_name})

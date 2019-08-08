@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
 import os
 import base64
 import json
@@ -112,7 +113,7 @@ class APITests(TestCase):
         for name in groups:
             group, created = Group.objects.get_or_create(name=name)
             user.groups.add(group)
-        auth = "Basic %s" % (base64.b64encode("%s:%s" % (username, password)))
+        auth = "Basic %s" % (base64.b64encode(("%s:%s" % (username, password)).encode("ascii")).decode("ascii"))
         return user, auth
 
     def test_history_no_type(self):

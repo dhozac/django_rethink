@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
 import uuid
 import rethinkdb as r
 import deepdiff
@@ -162,8 +163,8 @@ class RethinkSerializer(serializers.Serializer):
             reql = fields.pop('reql')
         except KeyError:
             reql = False
-        if len(args) == 0 and len(fields) == 1 and fields.keys()[0] in cls.Meta.indices and not cls.Meta.order_by:
-            index, value = fields.items()[0]
+        if len(args) == 0 and len(fields) == 1 and list(fields.keys())[0] in cls.Meta.indices and not cls.Meta.order_by:
+            index, value = list(fields.items())[0]
             query = query.get_all(value, index=index)
         else:
             if args:
@@ -184,11 +185,11 @@ class RethinkSerializer(serializers.Serializer):
     def get(cls, *args, **fields):
         rs = cls.filter(*args, **fields)
         try:
-            result = rs.next()
+            result = next(rs)
         except r.errors.ReqlCursorEmpty:
             raise RethinkObjectNotFound("Query %s returned no objects" % rs.reql_query)
         try:
-            rs.next()
+            next(rs)
             raise RethinkMultipleObjectsFound("Query %s returned more than one object" % rs.reql_query)
         except r.errors.ReqlCursorEmpty:
             pass
@@ -206,7 +207,7 @@ class RethinkSerializer(serializers.Serializer):
         for group in self.Meta.unique_together:
             value = [data.get(field, self.instance.get(field, None) if self.instance is not None else None) for field in group]
             for index in self.Meta.indices:
-                if isinstance(index, (tuple, list)) and isinstance(index[1], tuple) and map(str, index[1]) == map(str, group):
+                if isinstance(index, (tuple, list)) and isinstance(index[1], tuple) and [str(i) for i in index[1]] == [str(i) for i in group]:
                     query = r.table(self.Meta.table_name).get_all(value, index=index[0])
                     break
             else:

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
 from django.core.management.base import BaseCommand, CommandError
 import rethinkdb as r
 from importlib import import_module
@@ -36,7 +37,7 @@ class Command(BaseCommand):
         if settings.RETHINK_DB_DB not in r.db_list().run(conn):
             r.db_create(settings.RETHINK_DB_DB).run(conn)
 
-        classes = filter(lambda x: not x.Meta.abstract, all_subclasses(RethinkSerializer))
+        classes = [x for x in all_subclasses(RethinkSerializer) if not x.Meta.abstract]
         tables_now = set(r.db(settings.RETHINK_DB_DB).table_list().run(conn))
         replicas = r.db("rethinkdb").table("server_config").count().run(conn)
 

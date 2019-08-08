@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import rethinkdb as r
+from __future__ import absolute_import
 import json
+from functools import reduce
+import rethinkdb as r
 from django.core.exceptions import ImproperlyConfigured
 from django.http import Http404
 from django.utils.translation import ugettext as _
@@ -139,7 +141,7 @@ class RethinkAPIMixin(object):
 
         if self.request.query_params:
             fields = self.serializer_class.__dict__['_declared_fields'].keys()
-            for key, val in self.request.query_params.iterlists():
+            for key, val in self.request.query_params.lists():
                 regexp = None
                 if '__' in key:
                     keys = key.split("__")
@@ -165,9 +167,9 @@ class RethinkAPIMixin(object):
                 elif key in fields and isinstance(self.serializer_class.__dict__['_declared_fields'][key], serializers.ListField):
                     queryset = queryset.filter(lambda obj: r.expr(val).set_intersection(get_keys(obj, keys)).count() > 0)
                 elif key in fields and isinstance(self.serializer_class.__dict__['_declared_fields'][key], serializers.IntegerField):
-                    queryset = queryset.filter(lambda obj: r.expr(map(int, val)).contains(get_keys(obj, keys)))
+                    queryset = queryset.filter(lambda obj: r.expr([int(v) for v in val]).contains(get_keys(obj, keys)))
                 elif key in fields and isinstance(self.serializer_class.__dict__['_declared_fields'][key], serializers.BooleanField):
-                    queryset = queryset.filter(lambda obj: r.expr(map(json.loads, val)).contains(get_keys(obj, keys)))
+                    queryset = queryset.filter(lambda obj: r.expr([json.loads(v) for v in val]).contains(get_keys(obj, keys)))
                 elif key in fields and regexp is not None:
                     queryset = queryset.filter(lambda obj: get_keys(obj, keys).match(val[0]))
                 elif key in fields:
@@ -186,7 +188,7 @@ class RethinkAPIMixin(object):
         queryset = self.get_object_qs(self.get_queryset())
 
         try:
-            obj = queryset.run(self.get_connection()).next()
+            obj = next(queryset.run(self.get_connection()))
         except r.errors.ReqlCursorEmpty:
             raise Http404(_("No %(verbose_name)s found matching the query") %
                           {'verbose_name': self.serializer_class.Meta.table_name})
