@@ -14,7 +14,6 @@
 
 from __future__ import absolute_import
 import json
-import rethinkdb as r
 from django.views.generic.base import ContextMixin, View
 from django.core.exceptions import ImproperlyConfigured
 from django.http import Http404, HttpResponse, HttpResponseRedirect
@@ -23,7 +22,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.encoding import force_text
 from rest_framework import generics, permissions
 from rest_framework.exceptions import NotFound, PermissionDenied
-from django_rethink.connection import get_connection
+from django_rethink.connection import r, get_connection
 from django_rethink.apimixins import RethinkAPIMixin, RethinkSerializerPermission
 from django_rethink.serializers import RethinkSerializer, HistorySerializer, ReviewSerializer
 

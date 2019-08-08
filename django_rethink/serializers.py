@@ -14,14 +14,13 @@
 
 from __future__ import absolute_import
 import uuid
-import rethinkdb as r
 import deepdiff
 from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 from rest_framework.exceptions import APIException
 from rest_framework import status
-from django_rethink.connection import get_connection
+from django_rethink.connection import r, get_connection
 from django.conf import settings
 
 class validate_unique_key(object):

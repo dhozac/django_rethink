@@ -15,13 +15,12 @@
 from __future__ import absolute_import
 import json
 from functools import reduce
-import rethinkdb as r
 from django.core.exceptions import ImproperlyConfigured
 from django.http import Http404
 from django.utils.translation import ugettext as _
 from rest_framework import serializers
 from rest_framework import permissions
-from django_rethink.connection import get_connection
+from django_rethink.connection import r, get_connection
 
 class RethinkSerializerPermission(permissions.BasePermission):
     def get_permission(self, request, view, obj):

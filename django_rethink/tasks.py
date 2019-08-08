@@ -17,9 +17,8 @@ from __future__ import absolute_import
 import time
 import socket
 import logging
-import rethinkdb as r
 from celery import shared_task
-from django_rethink.connection import get_connection
+from django_rethink.connection import r, get_connection
 from django_rethink.serializers import RethinkSerializer, RethinkObjectNotFound
 
 logger = logging.getLogger("django_rethink.tasks")

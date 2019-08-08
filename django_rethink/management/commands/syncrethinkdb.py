@@ -14,9 +14,9 @@
 
 from __future__ import absolute_import
 from django.core.management.base import BaseCommand, CommandError
-import rethinkdb as r
 from importlib import import_module
 from django_rethink.tasks import all_subclasses
+from django_rethink.connection import r
 
 class Command(BaseCommand):
     help = 'Creates a database in the Rethink database configured.'

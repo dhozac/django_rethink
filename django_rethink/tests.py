@@ -23,8 +23,8 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.contrib.auth.hashers import make_password
-import rethinkdb as r
 
+from django_rethink.connection import r
 from django_rethink.serializers import *
 
 class TestSerializer(RethinkSerializer):

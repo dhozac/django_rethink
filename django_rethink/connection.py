@@ -13,8 +13,10 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import rethinkdb as r
 from django.conf import settings
+import rethinkdb as r
+if hasattr(r, 'RethinkDB'):
+    r = r.RethinkDB()
 
 class RethinkConnectionReconnector(object):
     def __init__(self, connection):
