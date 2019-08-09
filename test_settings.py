@@ -120,6 +120,6 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-RETHINK_DB_HOST = 'localhost'
+RETHINK_DB_HOST = '127.0.0.1'
 RETHINK_DB_PORT = 28015
 RETHINK_DB_DB = 'django_rethinkci'
