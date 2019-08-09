@@ -8,8 +8,8 @@ python:
 install: pip install tox-travis
 script: tox
 before_script:
-- wget http://deb.hozac.com/dhozac/ubuntu/trusty/rethinkdb_2.3.6+15+g8a9687+dirty~0_amd64.deb
-- "sudo dpkg -i ./rethinkdb_2.3.6+15+g8a9687+dirty~0_amd64.deb || :"
+- wget http://deb.hozac.com/dhozac/ubuntu/xenial/rethinkdb_2.3.6+15+g8a9687~0_amd64.deb
+- "sudo dpkg -i ./rethinkdb_2.3.6+15+g8a9687~0_amd64.deb || :"
 - sudo apt-get install -f -y
 - sudo cp /etc/rethinkdb/default.conf.sample /etc/rethinkdb/instances.d/instance1.conf
 - sudo invoke-rc.d rethinkdb start
