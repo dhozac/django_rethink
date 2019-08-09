@@ -13,6 +13,7 @@ before_script:
 - sudo apt-get install -f -y
 - sudo cp /etc/rethinkdb/default.conf.sample /etc/rethinkdb/instances.d/instance1.conf
 - sudo invoke-rc.d rethinkdb start
+- sleep 15
 env:
 - HANDLE_COVERAGE=coveralls
 deploy:
