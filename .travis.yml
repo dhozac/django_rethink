@@ -12,7 +12,7 @@ before_script:
 - "sudo dpkg -i ./rethinkdb_2.3.6+15+g8a9687~0_amd64.deb || :"
 - sudo apt-get install -f -y
 - sudo cp /etc/rethinkdb/default.conf.sample /etc/rethinkdb/instances.d/instance1.conf
-- sudo invoke-rc.d rethinkdb start
+- sudo service rethinkdb start
 - sleep 15
 env:
 - HANDLE_COVERAGE=coveralls
