@@ -13,7 +13,8 @@ before_script:
 - sudo apt-get install -f -y
 - sudo cp /etc/rethinkdb/default.conf.sample /etc/rethinkdb/instances.d/instance1.conf
 - ls -la /etc/rethinkdb/instances.d
-- sudo service rethinkdb start
+- /bin/sh -c 'ls /etc/rethinkdb/instances.d/*.conf'
+- sudo bash -x /etc/init.d/rethinkdb start
 - sudo systemctl status -l rethinkdb.service
 - while ! nc -z 127.0.0.1 28015; do sleep 1; done
 env:
