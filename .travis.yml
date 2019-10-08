@@ -12,8 +12,8 @@ before_script:
 - "sudo dpkg -i ./rethinkdb_2.3.6+15+g8a9687~0_amd64.deb || :"
 - sudo apt-get install -f -y
 - sudo cp /etc/rethinkdb/default.conf.sample /etc/rethinkdb/instances.d/instance1.conf
-- sudo service rethinkdb start
-- sleep 15
+- sudo bash /etc/init.d/rethinkdb start
+- while ! nc -z 127.0.0.1 28015; do sleep 1; done
 env:
 - HANDLE_COVERAGE=coveralls
 deploy:
