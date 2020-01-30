@@ -54,6 +54,8 @@ def validate_group_name(group_name):
             l = ldap.initialize(uri)
             if settings.AUTH_LDAP_START_TLS:
                 l.start_tls_s()
+            if hasattr(settings, 'AUTH_LDAP_BIND_DN'):
+                l.simple_bind_s(settings.AUTH_LDAP_BIND_DN, settings.AUTH_LDAP_BIND_PASSWORD)
             result = settings.AUTH_LDAP_GROUP_SEARCH.search_with_additional_term_string("(cn=%s)").execute(l, filterargs=(group_name,))
             if len(result) > 0:
                 return True
