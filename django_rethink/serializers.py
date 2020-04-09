@@ -56,8 +56,8 @@ def validate_group_name(group_name):
                 l.start_tls_s()
             if hasattr(settings, 'AUTH_LDAP_BIND_DN'):
                 l.simple_bind_s(settings.AUTH_LDAP_BIND_DN, settings.AUTH_LDAP_BIND_PASSWORD)
-            result = settings.AUTH_LDAP_GROUP_SEARCH.search_with_additional_term_string("(cn=%s)").execute(l, filterargs=(group_name,))
-            if len(result) > 0:
+            result = settings.AUTH_LDAP_GROUP_SEARCH.search_with_additional_term_string("(%s=%%s)" % settings.AUTH_LDAP_GROUP_TYPE.name_attr).execute(l, filterargs=(group_name,))
+            if len(result) > 0 and result[0][1][settings.AUTH_LDAP_GROUP_TYPE.name_attr][0] == group_name:
                 return True
         raise serializers.ValidationError("group %s does not exist" % group_name)
 
