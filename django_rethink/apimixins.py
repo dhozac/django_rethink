@@ -63,6 +63,7 @@ class RethinkAPIMixin(object):
     pk_index_name = None
     group_filter_fields = None
     group_filter_extras = []
+    public_field = None
 
     def get_connection(self):
         if self.rethink_conn is None:
@@ -126,6 +127,8 @@ class RethinkAPIMixin(object):
             if len(groups) == 0:
                 return queryset.filter(lambda obj: False)
             group_filters = [queryset.get_all(*groups, index=group_filter_field) for group_filter_field in self.group_filter_fields]
+            if self.public_field:
+                group_filters.append(queryset.filter({self.public_field: True}))
             queryset = reduce(lambda x, y: x.union(y), group_filters)
             queryset = queryset.distinct()
 
