@@ -52,6 +52,10 @@ class RethinkSerializerPermission(permissions.BasePermission):
                 permission == 'read'
             ):
             return True
+        if (permission == 'read' and
+               view.public_field is not None and
+               obj.get(view.public_field, False)):
+            return True
         user_groups = set(request.user.groups.all().values_list('name', flat=True))
         return len(user_groups.intersection(self.get_groups(obj, permission))) > 0
 
