@@ -1,0 +1,31 @@
+name: django_rethink testing
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel tox
+      - name: install and run rethinkdb
+        run: |
+          wget http://deb.hozac.com/dhozac/ubuntu/bionic/rethinkdb_2.3.6+15+g8a9687_0_amd64.deb
+          sudo dpkg -i ./rethinkdb_2.3.6+15+g8a9687_0_amd64.deb || :
+          sudo apt-get install -f -y
+          sudo cp /etc/rethinkdb/default.conf.sample /etc/rethinkdb/instances.d/instance1.conf
+          sudo bash /etc/init.d/rethinkdb start
+          while ! nc -z 127.0.0.1 28015; do sleep 1; done
+      - name: run tox
+        run: tox -e py
